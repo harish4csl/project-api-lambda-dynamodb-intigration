@@ -1,0 +1,57 @@
+import json
+import boto3
+from botocore.exceptions import ClientError
+
+dynamodb = boto3.resource('dynamodb')
+table_name = 'Students'
+
+def create_table_if_not_exists():
+    try:
+        table = dynamodb.create_table(
+            TableName=table_name,
+            KeySchema=[
+                {'AttributeName': 'StudentId', 'KeyType': 'HASH'}
+            ],
+            AttributeDefinitions=[
+                {'AttributeName': 'StudentId', 'AttributeType': 'S'}
+            ],
+            ProvisionedThroughput={
+                'ReadCapacityUnits': 5,
+                'WriteCapacityUnits': 5
+            }
+        )
+        # Wait until the table exists.
+        table.meta.client.get_waiter('table_exists').wait(TableName=table_name)
+        print("Table created.")
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceInUseException':
+            print("Table already exists.")
+        else:
+            raise
+
+def lambda_handler(event, context):
+    try:
+        # Step 1: Create the table if it doesn't exist
+        create_table_if_not_exists()
+        
+        # Step 2: Insert data
+        table = dynamodb.Table(table_name)
+        table.put_item(
+            Item={
+                'StudentId': 'S001',
+                'Name': 'John Doe',
+                'Age': 21,
+                'Department': 'Computer Science'
+            }
+        )
+
+        return {
+            'statusCode': 200,
+            'body': json.dumps('Item inserted successfully.')
+        }
+
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps(f"Error: {str(e)}")
+        }
